@@ -139,3 +139,25 @@ npx prisma migrate dev --name CreateUsersTable
 ```
 
 ### Step 6 Setup Enviroments Variables.
+
+ในอนาคต เราจะมีการใช้ JWT ซึ่งใช้ salt เราจะเก็บ หลายๆ parameter ไว้ที่นี่ และไม่ push ไป github
+
+
+
+### Step 7: Routes definitions
+
+### Step 8: User Signup
+
+### Step 9: Login and Generate JWT
+
+### Step 10: Advanced Error Handling
+
+### Step 11: Effortless Data Validation with Zod
+
+### Step 12: Generic Error Handling
+
+### Step 13 Using custom error class
+
+### Step 14 Authentication Middleware: Decoding JWT Tokens
+
+### Step 15 Adding different role to Users
