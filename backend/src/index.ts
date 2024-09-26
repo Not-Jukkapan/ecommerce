@@ -3,8 +3,14 @@ import { PORT } from './secrets';
 import rootRouter from './routes';
 import { PrismaClient } from '@prisma/client';
 import { errorMiddleware } from './middleware/error';
+import cors from 'cors'
 
 const app: Express = express();
+
+app.use(cors({
+    origin: 'http://192.168.1.63:5173',
+    credentials: true
+}))
 
 app.use(express.json());
 
