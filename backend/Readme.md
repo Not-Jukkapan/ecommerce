@@ -985,5 +985,109 @@ prisma migrate dev --name xxxxx
 
 แล้วไปทำ Controller ให้เสร็จ
 ```ts
+import { NextFunction, Request, Response } from "express"
+import { prismaClient } from ".."
+import { NotFoundException } from "../exceptions/not-found"
+import { ErrorCodes } from "../exceptions/root"
+import { Schema } from "zod"
+import { CreateProductSchema, UpdateProductSchema } from "../schema/product"
 
+export const createProduct = async (req: Request, res: Response) => {
+    // our tags ["tea","india"] => "tea,india" -> using join
+    // Create a validator to this request
+    CreateProductSchema.parse(req.body);
+
+    const product = await prismaClient.product.create({
+        data: {
+            ...req.body,
+            tags: req.body.tags.join(',')
+        }
+    })
+    res.json(product)
+}
+
+export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        UpdateProductSchema.parse(req.body);
+        const product = req.body
+        if (product.tags) {
+            product.tags = product.tags.join(',')
+        }
+        const updateProduct = await prismaClient.product.update({
+            where: {
+                id: parseInt(req.params.id)
+            },
+            data: product
+        })
+        res.json(updateProduct)
+    } catch (error) {
+        throw new NotFoundException('Product not found', ErrorCodes.PRODUCT_NOT_FOUND)
+    }
+
+}
+export const deleteProduct = async (req: Request, res: Response) => {
+    try {
+        const product = req.body
+        if (product.tags) {
+            product.tags = product.tags.join(',')
+        }
+        const deleteProduct = await prismaClient.product.delete({
+            where: {
+                id: parseInt(req.params.id)
+            },
+
+        })
+        res.json(deleteProduct)
+    } catch (error) {
+        throw new NotFoundException('Product not found', ErrorCodes.PRODUCT_NOT_FOUND)
+    }
+}
+export const listProducts = async (req: Request, res: Response) => {
+    // For pagination like 
+    //{ "offset": 0,count: 100}
+    //     "limit": 10,}
+
+    const count = await prismaClient.product.count()
+    const products = await prismaClient.product.findMany({
+        skip: +req.query.skip! | 0,
+        take: +req.query.limit! | 10
+    })
+    res.json({ count, products })
+
+}
+export const getProductById = async (req: Request, res: Response) => {
+    try {
+        const product = await prismaClient.product.findUnique({
+            where: {
+                id: parseInt(req.params.id)
+            }
+        })
+        res.json(product)
+    } catch (error) {
+        throw new NotFoundException('Product not found', ErrorCodes.PRODUCT_NOT_FOUND)
+    }
+}
 ```
+
+และอย่าลืม `validate`
+```ts
+import {z} from 'zod';
+
+export const CreateProductSchema = z.object({
+    name: z.string().min(1),
+    description: z.string().min(0),
+    price: z.number().min(1),
+    tags: z.array(z.string())
+})
+
+export const UpdateProductSchema = z.object({
+    name: z.string().min(1).optional(),
+    description: z.string().min(0).optional(),
+    price: z.number().min(1).optional(),
+    tags: z.array(z.string()).optional()
+})
+```
+
+### Step 18 Adding Address table to E-Commerce App
+
+สร้าง Model Address แล้วไป Map User

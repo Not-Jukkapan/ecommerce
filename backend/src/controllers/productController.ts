@@ -2,10 +2,14 @@ import { NextFunction, Request, Response } from "express"
 import { prismaClient } from ".."
 import { NotFoundException } from "../exceptions/not-found"
 import { ErrorCodes } from "../exceptions/root"
+import { Schema } from "zod"
+import { CreateProductSchema, UpdateProductSchema } from "../schema/product"
 
 export const createProduct = async (req: Request, res: Response) => {
-    // our tags ["tea","india"] => "tea,india"
+    // our tags ["tea","india"] => "tea,india" -> using join
     // Create a validator to this request
+    CreateProductSchema.parse(req.body);
+
     const product = await prismaClient.product.create({
         data: {
             ...req.body,
@@ -17,6 +21,7 @@ export const createProduct = async (req: Request, res: Response) => {
 
 export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
     try {
+        UpdateProductSchema.parse(req.body);
         const product = req.body
         if (product.tags) {
             product.tags = product.tags.join(',')
@@ -66,8 +71,8 @@ export const listProducts = async (req: Request, res: Response) => {
 export const getProductById = async (req: Request, res: Response) => {
     try {
         const product = await prismaClient.product.findUnique({
-            where:{
-                id:parseInt(req.params.id)
+            where: {
+                id: parseInt(req.params.id)
             }
         })
         res.json(product)
