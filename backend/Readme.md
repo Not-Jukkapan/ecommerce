@@ -713,8 +713,9 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
 export default authMiddleware;
 ```
 
+### Regarding the issues with attach the user to the current request object
+
 ```
-Regarding the issues with attach the user to the current request object
 It worked for me by doing the following steps:
 
 1. The first thing we need to do is to create a new declaration file @types > express > index.d.ts in the root of our project.
@@ -744,3 +745,245 @@ declare global{
 req.user= user as any;
 ```
 ### Step 15 Adding different role to Users
+
+เราจะมาสร้าง Roles Base กัน อันดับแรก modify roles ใน `prisma schema` กันก่อน
+
+```ts
+
+enum Role{
+  ADMIN
+  USER
+}
+
+model User{
+  id Int @id @default(autoincrement())
+  name String
+  email String @unique
+  password String
+  role Role @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+```
+
+จากนั้น Prisma Migrate อัพเดท Table ก่อนหน่อย
+```
+npx prisma migrate dev --name AdoRolesToUser
+```
+
+ใช้ Prisma Studio ลองเข้าไปดู และเปลี่ยน role เล่นดู
+```
+npx prisma studio
+```
+
+
+### Step 16 Admin Middleware: Role-Based Access Control
+
+มาดูว่าเราจะทำ role base access กันยังไง แต่ก่อนหน้านั้น ไปสร้าง table Product ก่อน เพื่อใช้งานกับ routes ใหม่ที่จะกำหนดสิทธิ
+
+```ts
+model Product {
+  id Int @id @default(autoincrement())
+  name String
+  description String
+  price Decimal
+  tags String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("products")
+}
+```
+
+และสร้าง `controller/productController.ts` กับ `routes/product.ts` ขึ้นมา เพื่อใช้งานกับ routes ที่เช็ค roles base เพิ่ม routes ของ product ไปที่หน้า index.ts ของ routes
+```ts
+import { Router } from "express";
+import authRoutes from "./auth";
+import productsRoutes from "./product";
+
+const rootRouter: Router = Router();
+
+rootRouter.use('/auth', authRoutes);
+rootRouter.get('/', (req, res) => {
+    res.send('Life Check');
+})
+
+rootRouter.use('/products', productsRoutes)
+
+export default rootRouter;
+```
+
+สร้าง Table
+```
+npx prisma migrate dev --name AddProductTable
+```
+Update Controller สำหรับ Create Product โดยตรง tags ที่รับมาเป็น array เราจะเก็บเป็น String แทน จากนั้นทดลองสร้าง product ดู
+```ts
+export const createProduct = async (req: Request, res: Response) => {
+
+    // our tags ["tea","india"] => "tea,india"
+
+    // Create a validator to this request
+
+    const product = await prismaClient.product.create({
+        data:{
+            ...req.body,
+            tags: req.body.tags.join(',')
+        }
+    })
+
+    res.json(product)
+
+}
+
+```
+ทดลองดู
+```json
+{
+    "name":"tea",
+    "description":"A sweet tea",
+    "tags":["tea", "india"],
+    "price":20
+}
+```
+
+จากนั้นลองมา Test ใช้กับ authMiddleware กัน Check ว่าต้องม Token ต้อง OK ถึง Create ได้
+
+```ts
+// จาก
+productsRoutes.post('/', errorHandler(createProduct))
+// เป็น
+productsRoutes.post('/', [authMiddleware],errorHandler(createProduct))
+```
+
+ต้องได้ ถ้าไม่ใส่ token
+```json
+{
+    "message": "Unauthorized",
+    "errorCode": 4001
+}
+```
+
+ และหลังใส่ใน header ต้องสามารถ create product ได้
+
+ จากนั้นไปลุยกัน `rolesMiddleware` โดยสร้าง `middleware/admin.ts`
+
+ ```ts
+import { User } from "@prisma/client";
+import { NextFunction, Request, Response } from "express";
+import { UnauthirizedException } from "../exceptions/unauthorized";
+import { ErrorCodes } from "../exceptions/root";
+
+export interface AuthenticatedRequest extends Request {
+    user?: User
+}
+
+const adminMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const user = req.user
+    if (user?.role == "ADMIN") {
+        next()
+    } else {
+        next(new UnauthirizedException("Unauthorized", ErrorCodes.UNAUTHORIZED));
+    }
+}
+
+export default adminMiddleware;
+ ```
+
+ จากนั้น เอา authMiddleware ไป chain กันต่อ ที่หน้า `productRoutes`
+ 
+ ```ts
+productsRoutes.post('/', [authMiddleware, adminMiddleware],errorHandler(createProduct))
+ ```
+
+ลอง login และใช้ token ไป Create Product ดู มันต้องไม่ได้
+หลังจากนั้น เข้า prisma studio เพื่อความสะดวก ไปแก้ Roles สักตัวเป็น admin แล้ว login และใช้ token ของตัวนั้น ไปสร้าง Product มันจะต้องได้
+```
+npx prisma studio
+```
+
+### Step 17 Finising all produt routes in E-Commerce App
+
+Update Dummy `controller/productComtroller.ts` ไว้ก่อน พวก basic CRUD
+```ts
+
+export const updateProduct = async (req: Request, res: Response) => {
+
+}
+export const deleteProduct = async (req: Request, res: Response) => {
+
+}
+export const listProducts = async (req: Request, res: Response) => {
+
+}
+export const getProductByIdt = async (req: Request, res: Response) => {
+
+}
+
+```
+
+จากนั้น อัพเดท `routes/product.ts` ด้วย controller พวกนี้ และแน่นอน อย่าลืมโยน Middleware ให้แต่ละ route
+```ts
+import { Router } from "express";
+import { errorHandler } from "../error-handler";
+import { createProduct, deleteProduct, getProductById, listProducts, updateProduct } from "../controllers/productController";
+import authMiddleware from "../middleware/auth";
+import adminMiddleware from "../middleware/admin";
+
+const productsRoutes: Router = Router()
+
+productsRoutes.post('/', [authMiddleware, adminMiddleware],errorHandler(createProduct))
+
+
+productsRoutes.put('/:id', [authMiddleware, adminMiddleware],errorHandler(updateProduct))
+
+productsRoutes.delete('/:id', [authMiddleware, adminMiddleware],errorHandler(deleteProduct))
+
+productsRoutes.get('/', [authMiddleware, adminMiddleware],errorHandler(listProducts))
+
+productsRoutes.get('/:id', [authMiddleware, adminMiddleware],errorHandler(getProductById))
+export default productsRoutes
+
+```
+
+จากนั้น Update Product Model ใน Prisma ตรง **description** เนื่องจาก String ใน MySQL มันจะ จำกัดจำนวน Text เราใส่ @db.Text เพื่อให้มัน Unlimited แต่ถ้าใช้ `PostgreSQL` ไม่ต้องทำงี้
+
+``` ts
+// จาก
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  price       Decimal
+  tags        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("products")
+}
+
+// เป็น
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String   @db.Text
+  price       Decimal
+  tags        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("products")
+}
+```
+รัน migrate  เพื่อ แก้ไข table
+```
+prisma migrate dev --name xxxxx
+```
+
+แล้วไปทำ Controller ให้เสร็จ
+```ts
+
+```
