@@ -1091,3 +1091,42 @@ export const UpdateProductSchema = z.object({
 ### Step 18 Adding Address table to E-Commerce App
 
 สร้าง Model Address แล้วไป Map User
+```ts
+model Address {
+  id        Int      @id @default(autoincrement())
+  line      String
+  lineTwo   String?
+  city      String
+  country   String
+  pincode   String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("addresses")
+}
+```
+
+อย่าลืม Update User Model ด้วย
+```ts
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  addresses Address[]
+
+  @@map("users")
+}
+```
+
+จากนั้น Migrate Database
+
+```
+prisma migrate dev --name AddAddressesTable
+```
