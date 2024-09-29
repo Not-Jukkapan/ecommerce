@@ -24,8 +24,20 @@ export const addAddress = async (req: Request, res: Response) => {
     res.json({ address })
 }
 export const deleteAddress = async (req: Request, res: Response) => {
+    try {
+        await prismaClient.address.delete({ where: { id: +req.params.id } });
 
+        res.json({ success: true });
+    } catch (error) {
+        throw new NotFoundException("Address not found", ErrorCodes.ADDRESS_NOT_FOUND);
+    }
 }
 export const listAddress = async (req: Request, res: Response) => {
 
+    const addresses = await prismaClient.address.findMany({
+        where: {
+            userId: +req.body.userId
+        }
+    })
+    res.json({ addresses })
 }

@@ -1169,4 +1169,88 @@ export default usersRouter;
 จากนั้น เตรียม validate request field กันต่อ 
 
 จากนั้นไปลุย Controller ให้เสร็จ
+```ts
+export const addAddress = async (req: Request, res: Response) => {
+    AddressSchema.parse(req.body);
+    let user: User;
+    try {
+        user = await prismaClient.user.findFirstOrThrow({
+            where: {
+                id: +req.body.userId
+            }
+        });
+    } catch (error) {
+        throw new NotFoundException("User not found", ErrorCodes.USER_NOT_FOUND);
+    }
 
+    const address = await prismaClient.address.create({
+        data: { ...req.body, userId: user.id }
+    })
+    res.json({ address })
+}
+```
+หลังจาก Test add address เสร็จ ต่อมาเรามาลองใช้ auth token สำหรับ user เอามาใช้กัน
+
+เนื่องจากมันเป็นของ user ไม่ต้อง check admin roles ก็ได้ ไปแกะเอา userId จาก token มาใช้ดีกว่า
+
+เริ่มจาก แก้ไข controller เรา
+
+```ts
+export const addAddress = async (req: Request, res: Response) => {
+    AddressSchema.parse(req.body);
+ 
+    const address = await prismaClient.address.create({
+        data: { ...req.body, userId: req.user.id }
+    })
+    res.json({ address })
+}
+
+```
+
+จากนั้นแก้ไข `userRoutes.ts` เอา `adminMiddleware` ออก
+```ts
+import { Router } from "express";
+import { errorHandler } from "../error-handler";
+import authMiddleware from "../middleware/auth";
+import adminMiddleware from "../middleware/admin";
+import { addAddress, deleteAddress, listAddress } from "../controllers/usersController";
+
+
+const usersRouter = Router();
+
+usersRouter.post("/address", [authMiddleware], errorHandler(addAddress));
+usersRouter.delete("/address/:id", [authMiddleware], errorHandler(deleteAddress));
+usersRouter.get("/address", [authMiddleware], errorHandler(listAddress));
+
+
+export default usersRouter;
+```
+
+จากนั้น Test ดู มันต้องได้
+
+หลังจาก Test ผ่าน ไปทำ `usersControllers.ts` ต่อให้เสร็จ
+
+```ts
+export const deleteAddress = async (req: Request, res: Response) => {
+    try {
+        await prismaClient.address.delete({ where: { id: +req.params.id } });
+
+        res.json({ success: true });
+    } catch (error) {
+        throw new NotFoundException("Address not found", ErrorCodes.ADDRESS_NOT_FOUND);
+    }
+}
+export const listAddress = async (req: Request, res: Response) => {
+
+    const addresses = await prismaClient.address.findMany({
+        where: {
+            userId: +req.body.userId
+        }
+    })
+    res.json({ addresses })
+}
+
+```
+**ตอน Delete เรา response แค่ว่า Delete Success ไหม ก็ได้ ไม่จำเป็นต้องส่ง address ที่ถูกลบ กลับไป**
+
+### Step 20 
