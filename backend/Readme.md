@@ -1130,3 +1130,43 @@ model User {
 ```
 prisma migrate dev --name AddAddressesTable
 ```
+
+### Step 19 Managing user addresses in E-Commerce
+เริ่มโดย ไปสร้าง dummy controller function ที่ `controllers/usersController.ts` 
+```ts
+import { Request, Response, NextFunction } from "express";
+
+export const addAddress = async (req: Request, res: Response) => {
+
+}
+export const deleteAddress = async (req: Request, res: Response) => {
+
+}
+export const listAddress = async (req: Request, res: Response) => {
+
+}
+```
+
+และไปเตรียม Routes สำหรับ address `routes/users.ts`
+```ts
+import { Router } from "express";
+import { errorHandler } from "../error-handler";
+import authMiddleware from "../middleware/auth";
+import adminMiddleware from "../middleware/admin";
+import { addAddress, deleteAddress, listAddress } from "../controllers/usersController";
+
+
+const usersRouter = Router();
+
+usersRouter.post("/address", [authMiddleware, adminMiddleware], errorHandler(addAddress));
+usersRouter.delete("/address/:id", [authMiddleware, adminMiddleware], errorHandler(deleteAddress));
+usersRouter.get("/address", [authMiddleware, adminMiddleware], errorHandler(listAddress));
+
+
+export default usersRouter;
+```
+
+จากนั้น เตรียม validate request field กันต่อ 
+
+จากนั้นไปลุย Controller ให้เสร็จ
+
