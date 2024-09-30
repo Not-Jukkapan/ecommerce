@@ -1527,7 +1527,7 @@ model Order {
 }
 
 ```
-2) สำหรับเก็บ product สำหรับ orders นั้นๆ many - many
+2) สำหรับเก็บ product สำหรับ orders นั้นๆ many - many sss
 ```ts
 model OrderProduct {
   id        Int      @id @default(autoincrement())
