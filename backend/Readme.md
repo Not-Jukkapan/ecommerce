@@ -1507,5 +1507,61 @@ For same product, you can make another query before adding to check if the produ
 
 เราจะมาสร้าง Model สำหรับ Order Process กัน โดยทั่วไป มันจะมี 3 Model พื้นฐานสำหรับ Process นี้
 1) model สำหรับ storing orders
+```ts
+model Order {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  netAmount Decimal
+  address   String
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Product   Product? @relation(fields: [productId], references: [id])
+  productId Int?
+
+  products OrderProduct[]
+  events   OrderEvent[]
+
+  @@map("orders")
+}
+
+```
 2) สำหรับเก็บ product สำหรับ orders นั้นๆ many - many
-3) 
+```ts
+model OrderProduct {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id])
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  @@map("order_products")
+}
+```
+3) model สำหรับเก็บ event ไว้เป็น condition สำหรับ orders นั้นๆ ว่าจะไปทางไหนต่อ
+```ts
+enum OrderEventStatus {
+  PENDING
+  ACCEPTED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+model OrderEvent {
+  id      Int   @id @default(autoincrement())
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id])
+  status  OrderEventStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("order_events")
+}
+
+```
