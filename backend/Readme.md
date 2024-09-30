@@ -1253,4 +1253,259 @@ export const listAddress = async (req: Request, res: Response) => {
 ```
 **ตอน Delete เรา response แค่ว่า Delete Success ไหม ก็ได้ ไม่จำเป็นต้องส่ง address ที่ถูกลบ กลับไป**
 
-### Step 20 
+### Step 20 Updating users and using default addresses
+สำหรับข้อมูล user, เราจะต้องมี default Address สำหรับ Shipping และ สำหรับ Billing
+**ไปแก้ไข ๊model User**
+```ts
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  defaultShippingAddress Int?
+  defaultBillingAddress  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  addresses Address[]
+
+  @@map("users")
+}
+```
+จากนั้น อย่าลืม migrate
+```
+prisma migrate dev --name AddDefaultAddresses
+```
+
+
+เรายังเหลือ update address routes สร้าง dummy ไว้ก่อนเ เราจะไปทำ 
+```ts
+usersRouter.put("/address/:id", [authMiddleware], errorHandler(updateAddress));
+```
+
+ไปเตรียม Schema สำหรับ validate ที่ `Schema/users.ts` กันต่อ
+```ts
+export const UpdateUsersSchema = z.object({
+    name: z.string().nullable(),
+    defaultShippingAddress: z.number().nullable(),
+    defaultBillingAddress: z.number().nullable()
+})
+```
+ไปลุย `controllers/usersController.ts` สำหรับ **Update Addresses** กันต่อ
+
+```ts
+export const updateAddress = async (req: Request, res: Response) => {
+    const validateData = UpdateUsersSchema.parse(req.body);
+    let shippingAddress: Address;
+    let billingAddress: Address;
+    if (validateData.defaultShippingAddress) {
+        try {
+            shippingAddress = await prismaClient.address.findFirstOrThrow({
+                where: {
+                    id: +validateData.defaultShippingAddress
+                }
+            });
+
+        } catch (error) {
+            throw new NotFoundException("Address not found", ErrorCodes.ADDRESS_NOT_FOUND);
+
+        }
+        if (shippingAddress.userId !== +req.body.userId) {
+            throw new BadRequest("Address does not belong to user.", ErrorCodes.ADDRESS_DOES_NOT_BELONG);
+        }
+    }
+
+    if (validateData.defaultBillingAddress) {
+        try {
+            billingAddress = await prismaClient.address.findFirstOrThrow({
+                where: {
+                    id: +validateData.defaultBillingAddress
+                }
+            });
+
+        } catch (error) {
+            throw new NotFoundException("Address not found", ErrorCodes.ADDRESS_NOT_FOUND);
+        }
+        if (billingAddress.userId !== +req.body.userId) {
+            throw new BadRequest("Address does not belong to user.", ErrorCodes.ADDRESS_DOES_NOT_BELONG);
+        }
+    }
+
+    const updatedUser = await prismaClient.user.update({
+        where: {
+            id: +req.body.userId
+        },
+        data: {
+            defaultShippingAddress: validateData.defaultShippingAddress,
+            defaultBillingAddress: validateData.defaultBillingAddress
+        }
+    })
+
+    res.json({ user: updatedUser })
+}
+```
+
+### Step 21 Creating Cart model
+
+```ts
+model CartItem {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cart_items")
+}
+
+```
+จากนั้น migrate 
+```ts
+prisma migrate dev --name createCartTable
+```
+
+### Step 22 Adding and Deletign items for Cart
+
+แน่นอนว่าเราสร้าง Dummy Controller ไว้ก่อน CRUD สำหรับ `controller/cartController.ts`
+
+```ts
+import { Request, Response } from "express";
+
+export const addItemCart = async (req: Request, res: Response) => {
+
+}
+
+export const deleteItemFromCart = async (req: Request, res: Response) => {
+
+}
+
+export const changeQuantity = async (req: Request, res: Response) => {
+
+}
+
+export const getCart = async (req: Request, res: Response) => {
+
+}
+```
+
+จากนั้นไปสร้าง Routes ไว้ `routes/cart.ts`
+
+```ts
+import { Router } from "express";
+import authMiddleware from "../middleware/auth";
+import { errorHandler } from "../error-handler";
+import { addItemCart, changeQuantity, deleteItemFromCart, getCart } from "../controllers/cartController";
+
+const cartRouter = Router();
+
+cartRouter.post("/add", [authMiddleware], errorHandler(addItemCart));
+cartRouter.get("/add", [authMiddleware], errorHandler(deleteItemFromCart));
+cartRouter.delete("/add", [authMiddleware], errorHandler(changeQuantity));
+cartRouter.put("/add", [authMiddleware], errorHandler(getCart));
+
+export default cartRouter;
+
+```
+
+
+ไปเตรียม Schema ไว้ Validate Request กันต่อ `shcema/cart.ts`
+```ts
+import { z } from 'zod';
+
+export const CreateCartSchema = z.object({
+    productId: z.number(),
+    quantity: z.number()
+
+})
+
+```
+ไปเพิ่ม Controller ให้เสร็จ Pattern เดิมๆ CRUD ทั่วไป validate Request ก่อน ค่อยไปเช็คนู้นนี้ แล้วลุย logics
+
+```ts
+import { Request, Response } from "express";
+import { ChangeQuantitySchema, CreateCartSchema } from "../schema/cart";
+import { NotFoundException } from "../exceptions/not-found";
+import { ErrorCodes } from "../exceptions/root";
+import { Product } from "@prisma/client";
+import { prismaClient } from "..";
+import { AuthenticatedRequest } from "../middleware/auth";
+
+
+
+export const addItemCart = async (req: AuthenticatedRequest, res: Response) => {
+    // Check for the existence of the same product in user's cart and alter the quantity as required
+    const validatedData = CreateCartSchema.parse(req.body);
+    let product: Product;
+    try {
+        product = await prismaClient.product.findFirstOrThrow({
+            where: {
+                id: validatedData.productId
+            }
+        });
+
+    } catch (error) {
+        throw new NotFoundException("Product not found", ErrorCodes.PRODUCT_NOT_FOUND);
+    }
+    const cart = await prismaClient.cartItem.create({
+        data: {
+            userId: req.user!.id,
+            productId: product.id,
+            quantity: validatedData.quantity
+        }
+    })
+    res.json(cart);
+}
+
+export const deleteItemFromCart = async (req: Request, res: Response) => {
+    // check if user delete his own cart item
+    await prismaClient.cartItem.delete({ where: { id: +req.params.id } });
+    res.json({ success: true });
+}
+
+export const changeQuantity = async (req: Request, res: Response) => {
+    const validatedData = ChangeQuantitySchema.parse(req.body);
+    const updatedCart = await prismaClient.cartItem.update({
+        where: {
+            id: +req.params.id
+        },
+        data: {
+            quantity: validatedData.quantity
+        }
+    })
+
+    res.json(updatedCart);
+}
+
+export const getCart = async (req: Request, res: Response) => {
+    const cart = await prismaClient.cartItem.findMany({
+        where: {
+            userId: (req as AuthenticatedRequest).user!.id
+        },
+        include: {
+            product: true
+        }
+    });
+    res.json(cart);
+}
+```
+
+
+#### Note 
+can you please show us, how you would implement checking on updating his own cart and existence of same product in user's cart. it's difficult for newbies like me. thanks in advance.
+
+```
+Generally, if you are using any frameworks, you can use "object" permissions. But here you can write your custom logic to check the ocndition "cart.user.id==req.user.id" and throw the error accordingly.
+For same product, you can make another query before adding to check if the product already exist or not. Same thing we did in changeQuantity controller can be done in addCart as well if the product already exists. Hope this helps. Let me know if you have any other confusion regarding the same.
+```
+
+
+### Step 23 Creating Order Table
+
+เราจะมาสร้าง Model สำหรับ Order Process กัน โดยทั่วไป มันจะมี 3 Model พื้นฐานสำหรับ Process นี้
+1) model สำหรับ storing orders
+2) สำหรับเก็บ product สำหรับ orders นั้นๆ many - many
+3) 
