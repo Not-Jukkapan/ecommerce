@@ -1565,3 +1565,8 @@ model OrderEvent {
 }
 
 ```
+
+จากนั้น Classic 
+```
+prisma migrate dev --name CreateOrderTables
+```
