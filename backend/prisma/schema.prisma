@@ -1,11 +1,9 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
 }
 
 datasource db {
@@ -27,32 +25,32 @@ enum OrderEventStatus {
 }
 
 model User {
-  id                     Int      @id @default(autoincrement())
-  name                   String
-  email                  String   @unique
-  password               String
-  role                   Role     @default(USER)
+  id Int @id @default(autoincrement())
+  name String
+  email String @unique
+  password String
+  role Role @default(USER)
   defaultShippingAddress Int?
-  defaultBillingAddress  Int?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  defaultBillingAddress Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  addresses    Address[]
-  CartItem     CartItem[]
-  Order        Order[]
+  addresses Address[]
+  cartItems CartItem[]
+  orders Order[]
 
   @@map("users")
 }
 
 model Address {
-  id        Int      @id @default(autoincrement())
-  line      String
-  lineTwo   String?
-  city      String
-  country   String
-  pincode   String
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  id Int @id @default(autoincrement())
+  lineOne String
+  lineTwo String?
+  city String
+  country String
+  pincode String
+  userId Int
+  user User @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -60,27 +58,29 @@ model Address {
 }
 
 model Product {
-  id           Int            @id @default(autoincrement())
-  name         String
-  description  String         @db.Text
-  price        Decimal
-  tags         String
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  CartItem     CartItem[]
-  Order        Order[]
-  OrderProduct OrderProduct[]
+  id Int @id @default(autoincrement())
+  name String  
+  description String @db.Text
+  price Decimal
+  tags String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cartItems CartItem[]
+  orders OrderProduct[]
+
+  @@fulltext([name, description, tags])
 
   @@map("products")
 }
 
 model CartItem {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  id Int @id @default(autoincrement())
+  userId Int
+  user User @relation(fields: [userId], references: [id])
   productId Int
-  product   Product  @relation(fields: [productId], references: [id])
-  quantity  Int
+  product Product @relation(fields: [productId], references: [id])
+  quantity Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -88,42 +88,39 @@ model CartItem {
 }
 
 model Order {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  id Int @id @default(autoincrement())
+  userId Int
+  user User @relation(fields: [userId], references: [id])
   netAmount Decimal
-  address   String
-  quantity  Int
+  address String
+  status OrderEventStatus @default(PENDING)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  Product   Product? @relation(fields: [productId], references: [id])
-  productId Int?
 
   products OrderProduct[]
-  events   OrderEvent[]
+  events OrderEvent[]
 
   @@map("orders")
 }
 
 model OrderProduct {
-  id        Int      @id @default(autoincrement())
-  orderId   Int
-  order     Order    @relation(fields: [orderId], references: [id])
+  id Int @id @default(autoincrement())
+  orderId Int
+  order Order @relation(fields: [orderId], references: [id])
   productId Int
-  product   Product  @relation(fields: [productId], references: [id])
-  quantity  Int
+  product Product @relation(fields: [productId], references: [id])
+  quantity Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
 
   @@map("order_products")
 }
 
 model OrderEvent {
-  id      Int   @id @default(autoincrement())
+  id Int @id @default(autoincrement())
   orderId Int
-  order   Order @relation(fields: [orderId], references: [id])
-  status  OrderEventStatus @default(PENDING)
+  order Order @relation(fields: [orderId], references: [id])
+  status OrderEventStatus @default(PENDING)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

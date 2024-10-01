@@ -1570,3 +1570,9 @@ model OrderEvent {
 ```
 prisma migrate dev --name CreateOrderTables
 ```
+
+### Step 24 Placing Order from user's cart
+
+แน่นอนว่าเราสร้าง `controller/orderController.ts` และ `routes/order.ts` มาก่อน
+
+
